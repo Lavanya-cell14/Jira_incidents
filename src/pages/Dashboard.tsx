@@ -490,16 +490,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f9fafb] dark:bg-[#0b0f19] transition-colors duration-300">
-      <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
-
-      <main className="flex-grow">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-sm">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-2">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-                AI Powered Intelligence Ticket Resolution System
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                Cognitive Ticket Resolution Engine
               </h1>
-              <p className="text-lg text-gray-500 dark:text-gray-400 max-w-3xl">
+              <p className="text-lg text-blue-100 max-w-3xl">
                 Live Jira tickets from page {pagination.page} of {pagination.total_pages}
               </p>
             </div>
@@ -509,12 +507,16 @@ export default function Dashboard() {
               icon={RefreshCw}
               onClick={() => fetchTickets(page)}
               disabled={loading}
-              className="w-fit font-semibold"
+              className="w-fit border-white/40 bg-white/95 font-semibold text-gray-900 shadow-sm hover:bg-white"
             >
               Refresh
             </Button>
           </div>
+        </div>
+      </header>
 
+      <main className="flex-grow">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard
               title="Total Tickets"
