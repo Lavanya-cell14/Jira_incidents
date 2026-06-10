@@ -20,6 +20,11 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Moved from the old `#root` rule — App Router has no #root element,
+       so the full-height flex column now lives on <body>. */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 }
 
@@ -45,11 +50,4 @@
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-/* Base custom container */
-#root {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
