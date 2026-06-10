@@ -1,8 +1,26 @@
-import React from 'react';
 import { AlertTriangle, Info, CheckCircle2, XCircle } from 'lucide-react';
+import type { ComponentType } from 'react';
 
-export default function AlertBanner({ type = 'warning', message, actionText, onAction }) {
-  const configs = {
+export type AlertBannerType = 'warning' | 'critical' | 'info' | 'success';
+
+export interface AlertBannerProps {
+  type?: AlertBannerType;
+  message: string;
+  actionText?: string;
+  onAction?: () => void;
+}
+
+interface AlertBannerConfig {
+  bg: string;
+  border: string;
+  icon: ComponentType<{ className?: string }>;
+  iconColor: string;
+  textColor: string;
+  btnClass: string;
+}
+
+export default function AlertBanner({ type = 'warning', message, actionText, onAction }: AlertBannerProps) {
+  const configs: Record<AlertBannerType, AlertBannerConfig> = {
     warning: {
       bg: 'bg-amber-50',
       border: 'border-amber-200',

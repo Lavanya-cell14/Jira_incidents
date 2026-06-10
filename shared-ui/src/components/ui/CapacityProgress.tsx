@@ -1,6 +1,11 @@
-import React from 'react';
+export interface CapacityProgressProps {
+  value: number;
+  max?: number;
+  className?: string;
+  showLabel?: boolean;
+}
 
-export default function CapacityProgress({ value, max = 100, className = '', showLabel = true }) {
+export default function CapacityProgress({ value, max = 100, className = '', showLabel = true }: CapacityProgressProps) {
   const percentage = Math.min(100, Math.max(0, (value / max) * 100));
   
   let colorClass = 'bg-emerald-500';

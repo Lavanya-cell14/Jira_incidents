@@ -1,10 +1,25 @@
-import React from 'react';
 import Card, { CardContent } from './Card';
 import CapacityProgress from './CapacityProgress';
 import StatusBadge from './StatusBadge';
 import { Box } from 'lucide-react';
 
-export default function ZoneGroupCard({ name, totalZones, occupiedPercent, availableCapacity, status, onClick }) {
+export interface ZoneGroupCardProps {
+  name: string;
+  totalZones: number | string;
+  occupiedPercent: number;
+  availableCapacity: number | string;
+  status: string;
+  onClick?: () => void;
+}
+
+export default function ZoneGroupCard({
+  name,
+  totalZones,
+  occupiedPercent,
+  availableCapacity,
+  status,
+  onClick,
+}: ZoneGroupCardProps) {
   return (
     <Card 
       className="hover:shadow-md transition-all duration-200 cursor-pointer border-l-4 border-l-blue-500 h-full flex flex-col"

@@ -207,8 +207,8 @@ function getResolutionSuggestions(ticket: JiraTicket): ResolutionSuggestion[] {
 function DetailItem({ label, value, wide = false }: { label: string; value: unknown; wide?: boolean }) {
   return (
     <div className={wide ? 'sm:col-span-2' : ''}>
-      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold text-slate-950">
         {formatValue(value)}
       </p>
     </div>
@@ -217,9 +217,9 @@ function DetailItem({ label, value, wide = false }: { label: string; value: unkn
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/40">
-        <h4 className="text-sm font-bold text-gray-900 dark:text-white">{title}</h4>
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
+        <h4 className="text-sm font-bold text-slate-950">{title}</h4>
       </div>
       <div className="p-5">{children}</div>
     </section>
@@ -240,7 +240,7 @@ function DetailCollection({
       {items.length ? (
         <div className="space-y-3">
           {items.map((item, index) => (
-            <div key={index} className="rounded-lg border border-gray-100 dark:border-gray-800 p-4">
+            <div key={index} className="rounded-lg border border-slate-200 p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {getRecordEntries(item).map(([field, value]) => (
                   <DetailItem
@@ -255,7 +255,7 @@ function DetailCollection({
           ))}
         </div>
       ) : (
-        <p className="text-sm font-medium text-gray-500">{emptyText}</p>
+        <p className="text-sm font-medium text-slate-500">{emptyText}</p>
       )}
     </DetailSection>
   );
@@ -451,7 +451,7 @@ export default function Dashboard() {
     {
       header: 'Key',
       accessorKey: 'key',
-      className: 'w-[110px] font-mono text-xs font-semibold text-gray-900',
+      className: 'w-[110px] font-mono text-xs font-semibold text-slate-950',
     },
     {
       header: 'Summary',
@@ -461,7 +461,7 @@ export default function Dashboard() {
     {
       header: 'Description',
       accessorKey: 'description',
-      className: 'min-w-[300px] text-sm text-gray-600',
+      className: 'min-w-[300px] text-sm text-slate-600',
       cell: (row: JiraTicket) => (
         <span title={row.description} className="line-clamp-2">
           {row.description}
@@ -485,20 +485,20 @@ export default function Dashboard() {
     {
       header: 'Reporter',
       accessorKey: 'reporter',
-      className: 'w-[160px] text-sm font-medium text-gray-800',
+      className: 'w-[160px] text-sm font-semibold text-slate-800',
     },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f9fafb] dark:bg-[#0b0f19] transition-colors duration-300">
-      <header className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+      <header className="w-full bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 shadow-sm">
+        <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-2">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 Cognitive Ticket Resolution Engine
               </h1>
-              <p className="text-lg text-blue-100 max-w-3xl">
+              <p className="max-w-3xl text-sm font-medium text-blue-100">
                 Live Jira tickets from page {pagination.page} of {pagination.total_pages}
               </p>
             </div>
@@ -508,7 +508,7 @@ export default function Dashboard() {
               icon={RefreshCw}
               onClick={() => fetchTickets(page)}
               disabled={loading}
-              className="w-fit border-white/40 bg-white/95 font-semibold text-gray-900 shadow-sm hover:bg-white"
+              className="w-fit border-white/40 bg-white text-slate-950 hover:bg-blue-50"
             >
               Refresh
             </Button>
@@ -517,7 +517,7 @@ export default function Dashboard() {
       </header>
 
       <main className="flex-grow">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard
               title="Total Tickets"
@@ -545,14 +545,14 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
-            <section className="flex flex-col gap-3 min-w-0">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+            <section className="flex min-w-0 flex-col gap-3">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5 text-gray-500" />
+                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
+                  <ShieldAlert className="h-5 w-5 text-slate-500" />
                   Jira Tickets
                 </h2>
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
                   <span>
                     Showing {ticketsList.length} of {pagination.total}
                   </span>
@@ -565,7 +565,7 @@ export default function Dashboard() {
                   >
                     Previous
                   </Button>
-                  <span className="px-2 py-1 rounded-md bg-white border border-gray-100 text-gray-700">
+                  <span className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700">
                     {pagination.page} / {pagination.total_pages}
                   </span>
                   <Button
@@ -587,11 +587,11 @@ export default function Dashboard() {
               )}
 
               {loading ? (
-                <div className="h-72 rounded-xl border border-gray-100 bg-white shadow-sm flex items-center justify-center text-sm font-semibold text-gray-500">
+                <div className="flex h-72 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-500 shadow-sm">
                   Loading Jira tickets...
                 </div>
               ) : (
-                <div className="max-h-[620px] overflow-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+                <div className="max-h-[620px] overflow-auto rounded-lg bg-white">
                   <IntelligenceTable
                     columns={columns}
                     data={ticketsList}
@@ -601,27 +601,27 @@ export default function Dashboard() {
               )}
             </section>
 
-            <aside className="flex flex-col gap-8">
+            <aside className="flex flex-col gap-6">
               <div className="flex flex-col gap-3">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-gray-500" />
+                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950">
+                  <BarChart3 className="h-5 w-5 text-slate-500" />
                   Priority Breakdown
                 </h2>
-                <Card className="shadow-sm border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-                  <div className="px-6 py-5 pb-2 border-b border-gray-50 dark:border-gray-800 flex flex-col gap-1.5">
-                    <h3 className="text-sm font-semibold text-gray-500">Current Page Stats</h3>
-                    <p className="text-xs text-gray-400">Calculated from the {ticketsList.length} visible tickets</p>
+                <Card>
+                  <div className="flex flex-col gap-1.5 border-b border-slate-200 px-5 py-4">
+                    <h3 className="text-sm font-semibold text-slate-950">Current Page Stats</h3>
+                    <p className="text-xs font-medium text-slate-500">Calculated from the {ticketsList.length} visible tickets</p>
                   </div>
-                  <div className="p-6 space-y-4 pt-4">
+                  <div className="space-y-5 p-5">
                     {priorityBreakdown.map((item) => (
                       <div key={item.name} className="space-y-1">
                         <div className="flex justify-between text-xs font-semibold">
-                          <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
-                          <span className="text-gray-900 dark:text-white">
+                          <span className="text-slate-700">{item.name}</span>
+                          <span className="text-slate-950">
                             {item.count} tickets ({item.percentage}%)
                           </span>
                         </div>
-                        <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${item.color}`}
                             style={{ width: `${item.percentage}%` }}
@@ -646,13 +646,13 @@ export default function Dashboard() {
           }}
         >
           <div
-            className="w-full max-w-3xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col max-h-[90vh]"
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between">
+            <div className="flex items-start justify-between border-b border-slate-200 p-6">
               <div className="flex flex-col gap-2 pr-6">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                  <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-600">
                     {selectedTicket.key}
                   </span>
                   <Badge variant={priorityVariant(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
@@ -661,7 +661,7 @@ export default function Dashboard() {
                     type={statusStyleMap[selectedTicket.status]}
                   />
                 </div>
-                <h3 className="text-lg font-bold text-gray-950 dark:text-white leading-snug">
+                <h3 className="text-lg font-bold leading-snug text-slate-950">
                   {selectedTicket.summary}
                 </h3>
               </div>
@@ -670,14 +670,14 @@ export default function Dashboard() {
                   setSelectedTicket(null);
                   setShowManualForm(false);
                 }}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+                className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
                 aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-5 bg-white dark:bg-gray-900">
+            <div className="space-y-5 overflow-y-auto bg-white p-6">
               {manualSuccess && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                   {manualSuccess}
@@ -745,7 +745,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="p-4 bg-gray-50 dark:bg-gray-950/60 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4">
               {!isAiResolved(selectedTicket) && !showManualForm && (
                 <Button
                   variant="primary"
@@ -778,13 +778,13 @@ export default function Dashboard() {
           onClick={() => setShowManualForm(false)}
         >
           <div
-            className="w-full max-w-4xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col max-h-[92vh]"
+            className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between">
+            <div className="flex items-start justify-between border-b border-slate-200 p-6">
               <div className="flex flex-col gap-2 pr-6">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                  <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-600">
                     {selectedTicket.key}
                   </span>
                   <Badge variant={priorityVariant(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
@@ -793,14 +793,14 @@ export default function Dashboard() {
                     type={statusStyleMap[selectedTicket.status]}
                   />
                 </div>
-                <h3 className="text-lg font-bold text-gray-950 dark:text-white leading-snug">
+                <h3 className="text-lg font-bold leading-snug text-slate-950">
                   Manual Resolution Entry
                 </h3>
-                <p className="text-sm font-medium text-gray-500">{selectedTicket.summary}</p>
+                <p className="text-sm font-medium text-slate-500">{selectedTicket.summary}</p>
               </div>
               <button
                 onClick={() => setShowManualForm(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+                className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
                 aria-label="Close manual entry"
               >
                 <X className="w-5 h-5" />
@@ -810,8 +810,8 @@ export default function Dashboard() {
             <div className="p-6 overflow-y-auto space-y-6">
               <section className="space-y-3">
                 <div>
-                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">RAG and Runbook Suggestions</h4>
-                  <p className="text-xs font-medium text-gray-500">
+                  <h4 className="text-sm font-bold text-slate-950">RAG and Runbook Suggestions</h4>
+                  <p className="text-xs font-medium text-slate-500">
                     Click any card to copy its resolution into the form. You can add or edit text before submitting.
                   </p>
                 </div>
@@ -828,27 +828,27 @@ export default function Dashboard() {
                             resolution: suggestion.resolution,
                           }))
                         }
-                        className="text-left rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-gray-800 dark:bg-gray-950/30 dark:hover:border-blue-900"
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={suggestion.type === 'RAG Resolution' ? 'default' : 'secondary'}>
                             {suggestion.type}
                           </Badge>
                           {suggestion.source !== undefined && (
-                            <span className="text-xs font-semibold text-gray-500">
+                            <span className="text-xs font-semibold text-slate-500">
                               Source: {formatValue(suggestion.source)}
                             </span>
                           )}
                           {suggestion.similarity !== undefined && (
-                            <span className="text-xs font-semibold text-gray-500">
+                            <span className="text-xs font-semibold text-slate-500">
                               Score: {formatValue(suggestion.similarity)}
                             </span>
                           )}
                         </div>
                         {suggestion.reason !== undefined && (
-                          <p className="mt-2 text-xs font-medium text-gray-500">{formatValue(suggestion.reason)}</p>
+                          <p className="mt-2 text-xs font-medium text-slate-500">{formatValue(suggestion.reason)}</p>
                         )}
-                        <p className="mt-3 text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                        <p className="mt-3 whitespace-pre-wrap text-sm font-semibold text-slate-950">
                           {suggestion.resolution}
                         </p>
                       </button>
@@ -864,7 +864,7 @@ export default function Dashboard() {
               <form onSubmit={handleManualSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4">
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Resolution</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Resolution</span>
                     <textarea
                       required
                       rows={6}
@@ -875,13 +875,13 @@ export default function Dashboard() {
                           resolution: event.target.value,
                         }))
                       }
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       placeholder="Click a RAG/runbook card above or type the human resolution..."
                     />
                   </label>
 
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Complaint</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Complaint</span>
                     <textarea
                       required
                       rows={3}
@@ -892,13 +892,13 @@ export default function Dashboard() {
                           complaint: event.target.value,
                         }))
                       }
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       placeholder="Ticket complaint..."
                     />
                   </label>
 
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Resolved By</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Resolved By</span>
                     <input
                       required
                       value={manualForm.resolved_by}
@@ -908,13 +908,13 @@ export default function Dashboard() {
                           resolved_by: event.target.value,
                         }))
                       }
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       placeholder="Ram"
                     />
                   </label>
 
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Comment</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Comment</span>
                     <textarea
                       required
                       rows={3}
@@ -925,7 +925,7 @@ export default function Dashboard() {
                           comment: event.target.value,
                         }))
                       }
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       placeholder="Human reviewed the unresolved complaint and confirmed the fix."
                     />
                   </label>

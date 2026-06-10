@@ -1,8 +1,18 @@
-import React from 'react';
 import Card, { CardContent } from './Card';
 import { Sparkles, ArrowRight } from 'lucide-react';
 
-export default function RecommendationCard({ title, recommendations }) {
+export interface RecommendationItem {
+  type: 'info' | 'warning' | 'critical' | 'success';
+  message: string;
+  action?: string;
+}
+
+export interface RecommendationCardProps {
+  title: string;
+  recommendations: RecommendationItem[];
+}
+
+export default function RecommendationCard({ title, recommendations }: RecommendationCardProps) {
   return (
     <Card className="border-indigo-100 bg-gradient-to-b from-indigo-50/50 to-white">
       <CardContent className="p-5">

@@ -1,10 +1,25 @@
-import React from 'react';
 import Card, { CardContent } from './Card';
 import CapacityProgress from './CapacityProgress';
 import StatusBadge from './StatusBadge';
 import { Thermometer, Package } from 'lucide-react';
 
-export default function ZoneCard({ name, capacityPercent, availableSlots, productCount, temperature, status }) {
+export interface ZoneCardProps {
+  name: string;
+  capacityPercent: number;
+  availableSlots: number | string;
+  productCount: number | string;
+  temperature?: string;
+  status: string;
+}
+
+export default function ZoneCard({
+  name,
+  capacityPercent,
+  availableSlots,
+  productCount,
+  temperature,
+  status,
+}: ZoneCardProps) {
   return (
     <Card className="hover:border-blue-200 transition-colors duration-200 h-full flex flex-col">
       <CardContent className="p-5 flex flex-col h-full">

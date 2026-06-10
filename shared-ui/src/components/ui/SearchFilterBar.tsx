@@ -1,6 +1,19 @@
-import React from 'react';
 import { Search, Filter } from 'lucide-react';
 import Input from './Input';
+
+export interface SearchFilterItem {
+  id: string;
+  label: string;
+}
+
+export interface SearchFilterBarProps {
+  searchPlaceholder?: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  filters?: SearchFilterItem[];
+  activeFilter?: string;
+  onFilterChange?: (filterId: string) => void;
+}
 
 export default function SearchFilterBar({ 
   searchPlaceholder = "Search...", 
@@ -9,7 +22,7 @@ export default function SearchFilterBar({
   filters,
   activeFilter,
   onFilterChange 
-}) {
+}: SearchFilterBarProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
       <div className="relative w-full sm:max-w-md">
@@ -21,7 +34,7 @@ export default function SearchFilterBar({
           className="pl-10 bg-gray-50/50 border-gray-200"
           placeholder={searchPlaceholder}
           value={searchValue}
-          onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+          onChange={(event) => onSearchChange(event.target.value)}
         />
       </div>
       

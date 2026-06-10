@@ -1,8 +1,18 @@
-import React from 'react';
 import Card, { CardContent, CardHeader, CardTitle } from './Card';
 import { CheckCircle2, Circle } from 'lucide-react';
 
-export default function ProductTimeline({ events }) {
+export interface ProductTimelineEvent {
+  stage: string;
+  status: 'completed' | 'pending' | string;
+  date?: string;
+  location?: string;
+}
+
+export interface ProductTimelineProps {
+  events: ProductTimelineEvent[];
+}
+
+export default function ProductTimeline({ events }: ProductTimelineProps) {
   return (
     <Card>
       <CardHeader>
@@ -15,7 +25,6 @@ export default function ProductTimeline({ events }) {
           
           <div className="space-y-6 relative">
             {events.map((event, index) => {
-              const isLast = index === events.length - 1;
               const isCompleted = event.status === 'completed';
               
               return (
