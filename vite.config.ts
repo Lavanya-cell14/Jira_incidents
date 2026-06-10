@@ -5,6 +5,11 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      'shared-ui': fileURLToPath(new URL('./shared-ui/src', import.meta.url)),
+    },
+  },
   server: {
     proxy: {
       '/jira': {
@@ -15,7 +20,7 @@ export default defineConfig({
     fs: {
       allow: [
         fileURLToPath(new URL('.', import.meta.url)),
-        fileURLToPath(new URL('../shared-ui', import.meta.url)),
+        fileURLToPath(new URL('./shared-ui', import.meta.url)),
       ],
     },
   },
