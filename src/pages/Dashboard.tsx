@@ -1,491 +1,961 @@
-import React, { useState } from 'react';
-import { 
-  StatCard, 
-  IntelligenceTable, 
-  RecommendationCard, 
-  Card, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription, 
-  CardContent, 
-  Badge, 
-  StatusBadge,
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import {
+  Badge,
   Button,
-  Input
+  Card,
+  IntelligenceTable,
+  StatCard,
+  StatusBadge,
 } from 'shared-ui';
-import { stats, recentTickets, priorityBreakdown, aiRecommendations, assignedTickets } from '../data/tickets';
-import type { Ticket } from '../data/tickets';
-import { 
-  Ticket as TicketIcon, 
-  AlertCircle, 
-  Loader2, 
-  CheckCircle2, 
-  Zap, 
-  BarChart3, 
-  UserCheck, 
+import {
+  AlertCircle,
+  BarChart3,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
   ShieldAlert,
+  Ticket as TicketIcon,
   X,
-  AlertTriangle
 } from 'lucide-react';
 
-const priorityColors = {
-  Low: 'outline' as const,
-  Medium: 'default' as const,
-  High: 'warning' as const,
-  Critical: 'error' as const,
+type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'outline';
+
+interface JiraTicket {
+  id: string;
+  key: string;
+  summary: string;
+  description: string;
+  status: string;
+  priority: string;
+  category?: string;
+  resolution?: string;
+  resolved_by?: string | null;
+  reporter: string;
+  assignee: string;
+  created: string | null;
+  updated?: string | null;
+  [key: string]: unknown;
+}
+
+interface TicketsResponse {
+  tickets: JiraTicket[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  is_last: boolean;
+  next_page_token: string | null;
+}
+
+interface PriorityItem {
+  name: string;
+  count: number;
+  color: string;
+  percentage: number;
+}
+
+interface ManualResolutionForm {
+  resolution: string;
+  complaint: string;
+  resolved_by: string;
+  comment: string;
+}
+
+interface ResolutionSuggestion {
+  id: string;
+  type: 'RAG Resolution' | 'Runbook Resolution';
+  resolution: string;
+  source?: unknown;
+  similarity?: unknown;
+  reason?: unknown;
+}
+
+const pageSize = 15;
+const statsPageSize = 50;
+
+const priorityColorClass: Record<string, string> = {
+  Critical: 'bg-red-500',
+  High: 'bg-amber-500',
+  Medium: 'bg-blue-500',
+  Low: 'bg-emerald-500',
 };
 
-const statusMap: Record<string, string> = {
-  'Open': 'Warning',
+const statusStyleMap: Record<string, string> = {
+  Open: 'Warning',
   'In Progress': 'In Transit',
-  'Resolved': 'Available',
+  Resolved: 'Available',
+  Closed: 'Available',
+  completed: 'Available',
+  Completed: 'Available',
 };
+
+const detailFieldOrder = [
+  'id',
+  'key',
+  'summary',
+  'description',
+  'status',
+  'priority',
+  'category',
+  'resolution',
+  'resolved_by',
+  'reporter',
+  'assignee',
+  'created',
+  'updated',
+];
+
+const nestedDetailFields = ['ai_analyses', 'approval_histories', 'comments', 'recommendations'];
+
+function priorityVariant(priority: string): BadgeVariant {
+  if (priority === 'Critical') return 'error';
+  if (priority === 'High') return 'warning';
+  if (priority === 'Medium') return 'default';
+  if (priority === 'Low') return 'outline';
+  return 'secondary';
+}
+
+function formatValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return 'Not available';
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+function formatFieldLabel(field: string) {
+  return field.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatStatusLabel(status: string) {
+  if (status.toLowerCase() === 'completed') return 'Completed';
+  return status;
+}
+
+function isCompletedStatus(status: string) {
+  return ['resolved', 'closed', 'completed'].includes(status.toLowerCase());
+}
+
+function getResolvedBy(ticket: JiraTicket) {
+  return ticket.resolved_by ?? ticket.resolvedBy ?? '';
+}
+
+function isAiResolved(ticket: JiraTicket) {
+  const resolvedBy = String(getResolvedBy(ticket)).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return resolvedBy === 'airesolve';
+}
+
+function getExtraDetailRows(ticket: JiraTicket) {
+  return Object.entries(ticket).filter(
+    ([field]) => !detailFieldOrder.includes(field) && !nestedDetailFields.includes(field),
+  );
+}
+
+function getArrayField(ticket: JiraTicket, field: string) {
+  const value = ticket[field];
+  return Array.isArray(value) ? value : [];
+}
+
+function getRecordEntries(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  return Object.entries(value);
+}
+
+function createManualForm(ticket: JiraTicket): ManualResolutionForm {
+  return {
+    resolution: '',
+    complaint: ticket.description || ticket.summary || '',
+    resolved_by: '',
+    comment: '',
+  };
+}
+
+function getResolutionSuggestions(ticket: JiraTicket): ResolutionSuggestion[] {
+  return getArrayField(ticket, 'ai_analyses').flatMap((analysis, index) => {
+    if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return [];
+
+    const record = analysis as Record<string, unknown>;
+    const suggestions: ResolutionSuggestion[] = [];
+
+    if (record.rag_resolution) {
+      suggestions.push({
+        id: `rag-${record.id ?? index}`,
+        type: 'RAG Resolution',
+        resolution: String(record.rag_resolution),
+        source: record.source_used,
+        similarity: record.similarity_score,
+        reason: record.decision_reason,
+      });
+    }
+
+    if (record.runbook_resolution) {
+      suggestions.push({
+        id: `runbook-${record.id ?? index}`,
+        type: 'Runbook Resolution',
+        resolution: String(record.runbook_resolution),
+        source: record.source_used,
+        similarity: record.runbook_score ?? record.similarity_score,
+        reason: record.decision_reason,
+      });
+    }
+
+    return suggestions;
+  });
+}
+
+function DetailItem({ label, value, wide = false }: { label: string; value: unknown; wide?: boolean }) {
+  return (
+    <div className={wide ? 'sm:col-span-2' : ''}>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
+        {formatValue(value)}
+      </p>
+    </div>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/40">
+        <h4 className="text-sm font-bold text-gray-900 dark:text-white">{title}</h4>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function DetailCollection({
+  title,
+  items,
+  emptyText,
+}: {
+  title: string;
+  items: unknown[];
+  emptyText: string;
+}) {
+  return (
+    <DetailSection title={`${title} (${items.length})`}>
+      {items.length ? (
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div key={index} className="rounded-lg border border-gray-100 dark:border-gray-800 p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {getRecordEntries(item).map(([field, value]) => (
+                  <DetailItem
+                    key={field}
+                    label={formatFieldLabel(field)}
+                    value={value}
+                    wide={String(value).length > 80}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm font-medium text-gray-500">{emptyText}</p>
+      )}
+    </DetailSection>
+  );
+}
 
 export default function Dashboard() {
-  const [ticketsList, setTicketsList] = useState<Ticket[]>(recentTickets);
-  const [currentStats, setCurrentStats] = useState(stats);
-
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [ticketsList, setTicketsList] = useState<JiraTicket[]>([]);
+  const [allTickets, setAllTickets] = useState<JiraTicket[]>([]);
+  const [pagination, setPagination] = useState<Omit<TicketsResponse, 'tickets'>>({
+    total: 0,
+    page: 1,
+    page_size: pageSize,
+    total_pages: 1,
+    is_last: true,
+    next_page_token: null,
+  });
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<JiraTicket | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
-  const [resolutionDesc, setResolutionDesc] = useState('');
-  const [resolvedBy, setResolvedBy] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [manualForm, setManualForm] = useState<ManualResolutionForm>({
+    resolution: '',
+    complaint: '',
+    resolved_by: '',
+    comment: '',
+  });
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [manualSuccess, setManualSuccess] = useState<string | null>(null);
 
-  const handleTicketClick = (ticket: Ticket) => {
-    setSelectedTicket(ticket);
-    setShowManualForm(false);
-    setResolutionDesc('');
-    setResolvedBy('');
-    setIsSubmitted(false);
+  const fetchTickets = async (targetPage = page) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/jira/tickets?page=${targetPage}&page_size=${pageSize}`);
+
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`);
+      }
+
+      const data = (await response.json()) as TicketsResponse;
+      setTicketsList(data.tickets ?? []);
+      setPagination({
+        total: data.total,
+        page: data.page,
+        page_size: data.page_size,
+        total_pages: data.total_pages,
+        is_last: data.is_last,
+        next_page_token: data.next_page_token,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load Jira tickets');
+      setTicketsList([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const closeModal = () => {
-    setSelectedTicket(null);
+  const fetchAllTicketsForStats = async () => {
+    setStatsLoading(true);
+
+    try {
+      const firstResponse = await fetch(`/jira/tickets?page=1&page_size=${statsPageSize}`);
+
+      if (!firstResponse.ok) {
+        throw new Error(`Stats request failed with ${firstResponse.status}`);
+      }
+
+      const firstPage = (await firstResponse.json()) as TicketsResponse;
+      const remainingPages = Array.from(
+        { length: Math.max(0, firstPage.total_pages - 1) },
+        (_, index) => index + 2,
+      );
+
+      const remainingResponses = await Promise.all(
+        remainingPages.map(async (pageNumber) => {
+          const response = await fetch(`/jira/tickets?page=${pageNumber}&page_size=${statsPageSize}`);
+
+          if (!response.ok) {
+            throw new Error(`Stats request failed with ${response.status}`);
+          }
+
+          return (await response.json()) as TicketsResponse;
+        }),
+      );
+
+      setAllTickets([
+        ...(firstPage.tickets ?? []),
+        ...remainingResponses.flatMap((response) => response.tickets ?? []),
+      ]);
+    } catch {
+      setAllTickets([]);
+    } finally {
+      setStatsLoading(false);
+    }
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    fetchTickets(page);
+  }, [page]);
+
+  useEffect(() => {
+    fetchAllTicketsForStats();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTicket) {
+      setShowManualForm(false);
+      return;
+    }
+
+    setManualForm(createManualForm(selectedTicket));
+    setManualError(null);
+    setManualSuccess(null);
+    setManualSubmitting(false);
+  }, [selectedTicket]);
+
+  const handleManualSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!selectedTicket) return;
 
-    // Simulate database write / state update
-    // Update the ticket status to 'Resolved' and set resolvedByAI to false
-    const updatedTickets = ticketsList.map((t) => {
-      if (t.id === selectedTicket.id) {
-        return {
-          ...t,
-          status: 'Resolved' as const,
-          resolvedByAI: false,
-          assignedTo: resolvedBy || t.assignedTo,
-        };
+    setManualSubmitting(true);
+    setManualError(null);
+    setManualSuccess(null);
+
+    try {
+      const response = await fetch(`/jira/tickets/${selectedTicket.key}/human-resolution`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(manualForm),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Request failed with ${response.status}`);
       }
-      return t;
-    });
 
-    setTicketsList(updatedTickets);
+      setManualSuccess('Manual resolution submitted successfully.');
+      await fetchTickets(page);
+      await fetchAllTicketsForStats();
+      setSelectedTicket((ticket) =>
+        ticket
+          ? {
+              ...ticket,
+              status: 'completed',
+              resolution: manualForm.resolution,
+              resolved_by: manualForm.resolved_by,
+            }
+          : ticket,
+      );
+      setShowManualForm(false);
+    } catch (err) {
+      setManualError(err instanceof Error ? err.message : 'Unable to submit manual resolution');
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
 
-    // Update the selectedTicket object in modal view
-    setSelectedTicket({
-      ...selectedTicket,
-      status: 'Resolved' as const,
-      resolvedByAI: false,
-      assignedTo: resolvedBy || selectedTicket.assignedTo,
-    });
+  const currentStats = useMemo(() => {
+    const sourceTickets = allTickets.length ? allTickets : ticketsList;
+    const completed = sourceTickets.filter((ticket) => isCompletedStatus(ticket.status)).length;
+    const waitingForSupport = sourceTickets.length - completed;
 
-    // Update stats dynamically
-    const prevStatus = selectedTicket.status;
-    setCurrentStats((prev) => {
-      let openDiff = 0;
-      let progressDiff = 0;
-      if (prevStatus === 'Open') openDiff = -1;
-      if (prevStatus === 'In Progress') progressDiff = -1;
-      
+    return {
+      total: pagination.total || sourceTickets.length,
+      completed,
+      waitingForSupport,
+    };
+  }, [allTickets, pagination.total, ticketsList]);
+
+  const priorityBreakdown = useMemo<PriorityItem[]>(() => {
+    const order = ['Critical', 'High', 'Medium', 'Low'];
+
+    return order.map((priority) => {
+      const count = ticketsList.filter((ticket) => ticket.priority === priority).length;
+      const percentage = ticketsList.length ? Math.round((count / ticketsList.length) * 100) : 0;
+
       return {
-        ...prev,
-        open: Math.max(0, prev.open + openDiff),
-        inProgress: Math.max(0, prev.inProgress + progressDiff),
-        resolved: prev.resolved + 1,
+        name: priority,
+        count,
+        percentage,
+        color: priorityColorClass[priority],
       };
     });
-
-    setIsSubmitted(true);
-  };
+  }, [ticketsList]);
 
   const columns = [
     {
-      header: 'Ticket ID',
-      accessorKey: 'id',
-      className: 'w-[100px] font-mono text-xs font-semibold text-gray-900',
+      header: 'Key',
+      accessorKey: 'key',
+      className: 'w-[110px] font-mono text-xs font-semibold text-gray-900',
     },
     {
-      header: 'Subject',
-      accessorKey: 'subject',
-      className: 'min-w-[220px] text-sm',
+      header: 'Summary',
+      accessorKey: 'summary',
+      className: 'min-w-[240px] text-sm',
     },
     {
-      header: 'Priority',
-      accessorKey: 'priority',
-      className: 'w-[120px]',
-      cell: (row: Ticket) => {
-        const variant = priorityColors[row.priority] || 'default';
-        return <Badge variant={variant}>{row.priority}</Badge>;
-      }
+      header: 'Description',
+      accessorKey: 'description',
+      className: 'min-w-[300px] text-sm text-gray-600',
+      cell: (row: JiraTicket) => (
+        <span title={row.description} className="line-clamp-2">
+          {row.description}
+        </span>
+      ),
     },
     {
       header: 'Status',
       accessorKey: 'status',
-      className: 'w-[120px]',
-      cell: (row: Ticket) => {
-        return <StatusBadge status={statusMap[row.status] || row.status} />;
-      }
-    },
-    {
-      header: 'Assigned To',
-      accessorKey: 'assignedTo',
-      className: 'w-[150px] font-medium text-gray-800 text-sm',
-    },
-    {
-      header: 'Created',
-      accessorKey: 'created',
-      className: 'w-[140px] text-gray-500 text-xs',
-    }
-  ];
-
-  const assignedColumns = [
-    {
-      header: 'ID',
-      accessorKey: 'id',
-      className: 'w-[90px] font-mono text-xs font-semibold text-gray-900',
-    },
-    {
-      header: 'Subject',
-      accessorKey: 'subject',
-      className: 'min-w-[200px] text-sm',
+      className: 'w-[130px]',
+      cell: (row: JiraTicket) => (
+        <StatusBadge status={formatStatusLabel(row.status)} type={statusStyleMap[row.status]} />
+      ),
     },
     {
       header: 'Priority',
       accessorKey: 'priority',
-      className: 'w-[100px]',
-      cell: (row: Ticket) => {
-        const variant = priorityColors[row.priority] || 'default';
-        return <Badge variant={variant}>{row.priority}</Badge>;
-      }
+      className: 'w-[120px]',
+      cell: (row: JiraTicket) => <Badge variant={priorityVariant(row.priority)}>{row.priority}</Badge>,
     },
     {
-      header: 'Due Time',
-      accessorKey: 'due',
-      className: 'w-[120px] text-xs font-semibold text-indigo-600 dark:text-indigo-400',
-    }
+      header: 'Reporter',
+      accessorKey: 'reporter',
+      className: 'w-[160px] text-sm font-medium text-gray-800',
+    },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f9fafb] dark:bg-[#0b0f19] transition-colors duration-300">
-      {/* Premium Header Accent Line */}
       <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
-      
+
       <main className="flex-grow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-8">
-          
-          {/* Header Title Block */}
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-              AI Powered Intelligence Ticket Resolution System
-            </h1>
-            <p className="text-lg text-gray-500 dark:text-gray-400 max-w-3xl">
-              AI-driven ticket monitoring and resolution workspace
-            </p>
-          </div>
-
-          {/* Stats Summary Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard 
-              title="Total Tickets" 
-              value={currentStats.total} 
-              icon={TicketIcon} 
-              subtitle="All active workspace cases"
-            />
-            <StatCard 
-              title="Open Tickets" 
-              value={currentStats.open} 
-              icon={AlertCircle} 
-              trend="down"
-              trendValue="-14%"
-              subtitle="Requires triage"
-            />
-            <StatCard 
-              title="In Progress" 
-              value={currentStats.inProgress} 
-              icon={Loader2} 
-              trend="up"
-              trendValue="+2"
-              subtitle="Under investigation"
-            />
-            <StatCard 
-              title="Resolved Tickets" 
-              value={currentStats.resolved} 
-              icon={CheckCircle2} 
-              trend="neutral"
-              trendValue="100%"
-              subtitle="Met SLA requirements"
-            />
-          </div>
-
-          {/* Main Columns Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Left Column - Cases (Recent & Assigned) */}
-            <div className="lg:col-span-2 flex flex-col gap-8">
-              
-              {/* Recent Tickets Section */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-gray-500" />
-                    Recent Tickets
-                  </h2>
-                  <span className="text-xs font-semibold text-gray-400">Real-time update (click row to details)</span>
-                </div>
-                <IntelligenceTable 
-                  columns={columns} 
-                  data={ticketsList} 
-                  onRowClick={handleTicketClick}
-                />
-              </div>
-
-              {/* Assigned Tickets Section */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-gray-500" />
-                    Assigned Tickets
-                  </h2>
-                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Assigned to: Jane Cooper</span>
-                </div>
-                <IntelligenceTable 
-                  columns={assignedColumns} 
-                  data={assignedTickets} 
-                />
-              </div>
-              
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+                AI Powered Intelligence Ticket Resolution System
+              </h1>
+              <p className="text-lg text-gray-500 dark:text-gray-400 max-w-3xl">
+                Live Jira tickets from page {pagination.page} of {pagination.total_pages}
+              </p>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={() => fetchTickets(page)}
+              disabled={loading}
+              className="w-fit font-semibold"
+            >
+              Refresh
+            </Button>
+          </div>
 
-            {/* Right Column - Controls & Insights (Breakdown & Suggestions) */}
-            <div className="flex flex-col gap-8">
-              
-              {/* AI Suggested Actions */}
-              <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              title="Total Tickets"
+              value={currentStats.total}
+              icon={TicketIcon}
+              trend="neutral"
+              trendValue={`${ticketsList.length} shown`}
+              subtitle="All tickets in table source"
+            />
+            <StatCard
+              title="Waiting for Support"
+              value={currentStats.waitingForSupport}
+              icon={AlertCircle}
+              trend="neutral"
+              trendValue={statsLoading ? 'Loading' : 'All pages'}
+              subtitle="Open or in progress"
+            />
+            <StatCard
+              title="Completed"
+              value={currentStats.completed}
+              icon={CheckCircle2}
+              trend="neutral"
+              trendValue={statsLoading ? 'Loading' : 'All pages'}
+              subtitle="Resolved or closed"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
+            <section className="flex flex-col gap-3 min-w-0">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-indigo-500 fill-indigo-100 dark:fill-none" />
-                  AI Suggested Actions
+                  <ShieldAlert className="w-5 h-5 text-gray-500" />
+                  Jira Tickets
                 </h2>
-                <RecommendationCard 
-                  title="Intelligence Copilot Suggestions" 
-                  recommendations={aiRecommendations} 
-                />
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
+                  <span>
+                    Showing {ticketsList.length} of {pagination.total}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={ChevronLeft}
+                    disabled={loading || page <= 1}
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="px-2 py-1 rounded-md bg-white border border-gray-100 text-gray-700">
+                    {pagination.page} / {pagination.total_pages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={ChevronRight}
+                    disabled={loading || pagination.is_last}
+                    onClick={() => setPage((value) => value + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
 
-              {/* Priority Breakdown */}
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  Failed to load tickets: {error}
+                </div>
+              )}
+
+              {loading ? (
+                <div className="h-72 rounded-xl border border-gray-100 bg-white shadow-sm flex items-center justify-center text-sm font-semibold text-gray-500">
+                  Loading Jira tickets...
+                </div>
+              ) : (
+                <div className="max-h-[620px] overflow-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+                  <IntelligenceTable
+                    columns={columns}
+                    data={ticketsList}
+                    onRowClick={(ticket) => setSelectedTicket(ticket)}
+                  />
+                </div>
+              )}
+            </section>
+
+            <aside className="flex flex-col gap-8">
               <div className="flex flex-col gap-3">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-gray-500" />
                   Priority Breakdown
                 </h2>
                 <Card className="shadow-sm border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold text-gray-500">
-                      Distribution Stats
-                    </CardTitle>
-                    <CardDescription className="text-xs text-gray-400">
-                      Ecosystem breakdown of active cases
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-4">
+                  <div className="px-6 py-5 pb-2 border-b border-gray-50 dark:border-gray-800 flex flex-col gap-1.5">
+                    <h3 className="text-sm font-semibold text-gray-500">Current Page Stats</h3>
+                    <p className="text-xs text-gray-400">Calculated from the {ticketsList.length} visible tickets</p>
+                  </div>
+                  <div className="p-6 space-y-4 pt-4">
                     {priorityBreakdown.map((item) => (
                       <div key={item.name} className="space-y-1">
                         <div className="flex justify-between text-xs font-semibold">
-                          <span className="text-gray-700 dark:text-gray-300">{item.name} Priority</span>
-                          <span className="text-gray-900 dark:text-white">{item.count} tickets ({item.percentage}%)</span>
+                          <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                          <span className="text-gray-900 dark:text-white">
+                            {item.count} tickets ({item.percentage}%)
+                          </span>
                         </div>
                         <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full rounded-full transition-all duration-500 ${item.color}`}
                             style={{ width: `${item.percentage}%` }}
                           />
                         </div>
                       </div>
                     ))}
-                  </CardContent>
+                  </div>
                 </Card>
               </div>
-
-            </div>
-
+            </aside>
           </div>
-
         </div>
       </main>
 
-      {/* Modal Popup Overlay */}
       {selectedTicket && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
-          onClick={closeModal}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => {
+            setSelectedTicket(null);
+            setShowManualForm(false);
+          }}
         >
-          <div 
-            className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transform transition-all duration-300 scale-100 flex flex-col max-h-[90vh]"
-            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+          <div
+            className="w-full max-w-3xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(event) => event.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between bg-white dark:bg-gray-900">
-              <div className="flex flex-col gap-1 pr-6">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between">
+              <div className="flex flex-col gap-2 pr-6">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-                    {selectedTicket.id}
+                    {selectedTicket.key}
                   </span>
-                  <Badge variant={priorityColors[selectedTicket.priority] || 'default'}>
-                    {selectedTicket.priority} Priority
-                  </Badge>
+                  <Badge variant={priorityVariant(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
+                  <StatusBadge
+                    status={formatStatusLabel(selectedTicket.status)}
+                    type={statusStyleMap[selectedTicket.status]}
+                  />
                 </div>
-                <h3 className="text-lg font-bold text-gray-950 dark:text-white mt-2 leading-snug">
-                  {selectedTicket.subject}
+                <h3 className="text-lg font-bold text-gray-950 dark:text-white leading-snug">
+                  {selectedTicket.summary}
                 </h3>
               </div>
-              <button 
-                onClick={closeModal} 
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-805 transition-colors"
+              <button
+                onClick={() => {
+                  setSelectedTicket(null);
+                  setShowManualForm(false);
+                }}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body (Scrollable) */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-grow bg-white dark:bg-gray-900">
-              {/* Metadata Grid */}
-              <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm bg-gray-50/50 dark:bg-gray-950/40 rounded-xl p-4 border border-gray-100/50 dark:border-gray-800/30">
-                <div>
-                  <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Status</span>
-                  <div className="mt-1">
-                    <StatusBadge status={statusMap[selectedTicket.status] || selectedTicket.status} />
-                  </div>
+            <div className="p-6 overflow-y-auto space-y-5 bg-white dark:bg-gray-900">
+              {manualSuccess && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                  {manualSuccess}
                 </div>
-                <div>
-                  <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Assigned To</span>
-                  <p className="font-semibold text-gray-800 dark:text-gray-200 mt-1">{selectedTicket.assignedTo}</p>
+              )}
+
+              <DetailSection title="Ticket Details">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <DetailItem label="Id" value={selectedTicket.id} wide />
+                  <DetailItem label="Key" value={selectedTicket.key} />
+                  <DetailItem label="Status" value={formatStatusLabel(selectedTicket.status)} />
+                  <DetailItem label="Priority" value={selectedTicket.priority} />
+                  <DetailItem label="Category" value={selectedTicket.category} />
+                  <DetailItem label="Resolved By" value={getResolvedBy(selectedTicket)} />
+                  <DetailItem label="Reporter" value={selectedTicket.reporter} />
+                  <DetailItem label="Assignee" value={selectedTicket.assignee} />
+                  <DetailItem label="Created" value={selectedTicket.created} />
+                  <DetailItem label="Updated" value={selectedTicket.updated} />
+                  <DetailItem label="Summary" value={selectedTicket.summary} wide />
+                  <DetailItem label="Description" value={selectedTicket.description} wide />
                 </div>
-                <div className="col-span-2">
-                  <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Created Date</span>
-                  <p className="font-medium text-gray-700 dark:text-gray-300 mt-1">{selectedTicket.created}</p>
-                </div>
-              </div>
+              </DetailSection>
 
-              {/* AI Resolution Status Panel */}
-              <div className="space-y-4">
-                <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block">
-                  AI Resolution Status
-                </span>
+              <DetailSection title="Resolution">
+                <DetailItem label="Resolution" value={selectedTicket.resolution} wide />
+              </DetailSection>
 
-                {selectedTicket.resolvedByAI ? (
-                  /* Case 1: Solved by AI */
-                  <div className="bg-emerald-50/75 dark:bg-emerald-950/10 border border-emerald-200/50 dark:border-emerald-900/30 rounded-xl p-4 flex flex-col gap-2.5">
-                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
-                      <div className="p-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-full text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 className="w-4.5 h-4.5" />
-                      </div>
-                      <span>Resolved by AI</span>
-                    </div>
-                    <p className="text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed font-medium">
-                      {selectedTicket.aiResolutionSummary}
-                    </p>
+              <DetailCollection
+                title="AI Analyses"
+                items={getArrayField(selectedTicket, 'ai_analyses')}
+                emptyText="No AI analyses found for this ticket."
+              />
+
+              <DetailCollection
+                title="Comments"
+                items={getArrayField(selectedTicket, 'comments')}
+                emptyText="No comments found for this ticket."
+              />
+
+              <DetailCollection
+                title="Recommendations"
+                items={getArrayField(selectedTicket, 'recommendations')}
+                emptyText="No recommendations found for this ticket."
+              />
+
+              <DetailCollection
+                title="Approval History"
+                items={getArrayField(selectedTicket, 'approval_histories')}
+                emptyText="No approval history found for this ticket."
+              />
+
+              {getExtraDetailRows(selectedTicket).length > 0 && (
+                <DetailSection title="Additional Fields">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {getExtraDetailRows(selectedTicket).map(([field, value]) => (
+                      <DetailItem
+                        key={field}
+                        label={formatFieldLabel(field)}
+                        value={value}
+                        wide={String(value).length > 80}
+                      />
+                    ))}
                   </div>
-                ) : (
-                  /* Case 2: Not solved by AI */
-                  <div className="space-y-4">
-                    {!showManualForm && !isSubmitted ? (
-                      <div className="bg-amber-50/75 dark:bg-amber-950/10 border border-amber-200/50 dark:border-amber-900/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-2.5 text-amber-700 dark:text-amber-400 font-bold text-sm">
-                          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                          <span>AI could not fully resolve this ticket</span>
-                        </div>
-                        <Button 
-                          variant="primary" 
-                          size="sm" 
-                          onClick={() => setShowManualForm(true)}
-                          className="shrink-0 font-bold shadow-sm"
-                        >
-                          Manual Entry
-                        </Button>
-                      </div>
-                    ) : isSubmitted ? (
-                      /* Success Message */
-                      <div className="bg-emerald-50/75 dark:bg-emerald-950/10 border border-emerald-200/50 dark:border-emerald-900/30 rounded-xl p-4 flex items-center gap-3">
-                        <div className="p-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-full text-emerald-600 dark:text-emerald-400 shrink-0">
-                          <CheckCircle2 className="w-4 h-4" />
-                        </div>
-                        <span className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
-                          Manual resolution submitted successfully
-                        </span>
-                      </div>
-                    ) : (
-                      /* Form inside the same popup */
-                      <form onSubmit={handleManualSubmit} className="space-y-4 border border-gray-100 dark:border-gray-800 rounded-xl p-4 bg-gray-50/30 dark:bg-gray-950/10">
-                        <h4 className="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-2">
-                          Submit Manual Resolution
-                        </h4>
-                        
-                        <div className="flex flex-col gap-1.5 w-full">
-                          <label className="text-[13px] font-medium text-gray-700 dark:text-gray-300">
-                            Resolution Description
-                          </label>
-                          <textarea
-                            required
-                            rows={3}
-                            value={resolutionDesc}
-                            onChange={(e) => setResolutionDesc(e.target.value)}
-                            placeholder="Describe the steps taken to manually resolve this ticket..."
-                            className="w-full rounded-md border-[#56A8F0] border-[1px] p-3 text-sm text-[#4A4D4E] focus:ring-1 focus:ring-[#56A8F0] focus:border-[#56A8F0] outline-none transition-shadow placeholder:text-gray-400 dark:bg-gray-950 dark:text-white dark:border-gray-800 min-h-[80px]"
-                          />
-                        </div>
-
-                        <Input
-                          label="Resolved By"
-                          required
-                          value={resolvedBy}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setResolvedBy(e.target.value)}
-                          placeholder="Your name or agent handle"
-                          className="dark:bg-gray-950 dark:text-white dark:border-gray-800"
-                        />
-
-                        <div className="flex justify-end gap-3 pt-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            type="button" 
-                            onClick={() => setShowManualForm(false)}
-                            className="font-semibold"
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            variant="primary" 
-                            size="sm" 
-                            type="submit"
-                            className="font-bold"
-                          >
-                            Submit Resolution
-                          </Button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                )}
-              </div>
+                </DetailSection>
+              )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 bg-gray-50 dark:bg-gray-950/60 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-              <Button variant="secondary" size="sm" onClick={closeModal} className="font-bold">
+            <div className="p-4 bg-gray-50 dark:bg-gray-950/60 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+              {!isAiResolved(selectedTicket) && !showManualForm && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="font-bold"
+                  onClick={() => setShowManualForm(true)}
+                >
+                  Manual Entry
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSelectedTicket(null);
+                  setShowManualForm(false);
+                }}
+                className="font-bold"
+              >
                 Close
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedTicket && showManualForm && !isAiResolved(selectedTicket) && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowManualForm(false)}
+        >
+          <div
+            className="w-full max-w-4xl bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col max-h-[92vh]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between">
+              <div className="flex flex-col gap-2 pr-6">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                    {selectedTicket.key}
+                  </span>
+                  <Badge variant={priorityVariant(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
+                  <StatusBadge
+                    status={formatStatusLabel(selectedTicket.status)}
+                    type={statusStyleMap[selectedTicket.status]}
+                  />
+                </div>
+                <h3 className="text-lg font-bold text-gray-950 dark:text-white leading-snug">
+                  Manual Resolution Entry
+                </h3>
+                <p className="text-sm font-medium text-gray-500">{selectedTicket.summary}</p>
+              </div>
+              <button
+                onClick={() => setShowManualForm(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Close manual entry"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+              <section className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">RAG and Runbook Suggestions</h4>
+                  <p className="text-xs font-medium text-gray-500">
+                    Click any card to copy its resolution into the form. You can add or edit text before submitting.
+                  </p>
+                </div>
+
+                {getResolutionSuggestions(selectedTicket).length ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {getResolutionSuggestions(selectedTicket).map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        type="button"
+                        onClick={() =>
+                          setManualForm((current) => ({
+                            ...current,
+                            resolution: suggestion.resolution,
+                          }))
+                        }
+                        className="text-left rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-gray-800 dark:bg-gray-950/30 dark:hover:border-blue-900"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={suggestion.type === 'RAG Resolution' ? 'default' : 'secondary'}>
+                            {suggestion.type}
+                          </Badge>
+                          {suggestion.source !== undefined && (
+                            <span className="text-xs font-semibold text-gray-500">
+                              Source: {formatValue(suggestion.source)}
+                            </span>
+                          )}
+                          {suggestion.similarity !== undefined && (
+                            <span className="text-xs font-semibold text-gray-500">
+                              Score: {formatValue(suggestion.similarity)}
+                            </span>
+                          )}
+                        </div>
+                        {suggestion.reason !== undefined && (
+                          <p className="mt-2 text-xs font-medium text-gray-500">{formatValue(suggestion.reason)}</p>
+                        )}
+                        <p className="mt-3 text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                          {suggestion.resolution}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    No RAG or runbook resolutions were returned for this ticket.
+                  </div>
+                )}
+              </section>
+
+              <form onSubmit={handleManualSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Resolution</span>
+                    <textarea
+                      required
+                      rows={6}
+                      value={manualForm.resolution}
+                      onChange={(event) =>
+                        setManualForm((current) => ({
+                          ...current,
+                          resolution: event.target.value,
+                        }))
+                      }
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      placeholder="Click a RAG/runbook card above or type the human resolution..."
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Complaint</span>
+                    <textarea
+                      required
+                      rows={3}
+                      value={manualForm.complaint}
+                      onChange={(event) =>
+                        setManualForm((current) => ({
+                          ...current,
+                          complaint: event.target.value,
+                        }))
+                      }
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      placeholder="Ticket complaint..."
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Resolved By</span>
+                    <input
+                      required
+                      value={manualForm.resolved_by}
+                      onChange={(event) =>
+                        setManualForm((current) => ({
+                          ...current,
+                          resolved_by: event.target.value,
+                        }))
+                      }
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      placeholder="Ram"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Comment</span>
+                    <textarea
+                      required
+                      rows={3}
+                      value={manualForm.comment}
+                      onChange={(event) =>
+                        setManualForm((current) => ({
+                          ...current,
+                          comment: event.target.value,
+                        }))
+                      }
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                      placeholder="Human reviewed the unresolved complaint and confirmed the fix."
+                    />
+                  </label>
+                </div>
+
+                {manualError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                    {manualError}
+                  </div>
+                )}
+
+                {manualSuccess && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                    {manualSuccess}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowManualForm(false)}
+                    disabled={manualSubmitting}
+                    className="font-bold"
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" size="sm" disabled={manualSubmitting} className="font-bold">
+                    {manualSubmitting ? 'Submitting...' : 'Submit Human Resolution'}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
