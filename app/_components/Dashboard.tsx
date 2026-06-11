@@ -472,9 +472,9 @@ function EngineRecommendations({ analyses }: { analyses: unknown[] }) {
   return (
     <>
       <EngineResolutionSection
-        title="RAG Resolutions"
+        title="Historical Engines Solution"
         records={ragRecords}
-        emptyText="No RAG resolutions found for this ticket."
+        emptyText="No Historical Engines Solution found for this ticket."
         fields={[
           { field: 'category_prediction', label: 'Category Prediction' },
           { field: 'similarity_score', label: 'Similarity Score' },
@@ -482,15 +482,15 @@ function EngineRecommendations({ analyses }: { analyses: unknown[] }) {
           { field: 'source_used', label: 'Source Used' },
           { field: 'decision_reason', label: 'Decision Reason', wide: true },
           { field: 'created_at', label: 'Created At' },
-          { field: 'rag_complaint', label: 'RAG Complaint', wide: true },
-          { field: 'rag_resolution', label: 'RAG Resolution', wide: true },
+          { field: 'rag_complaint', label: 'Complaint', wide: true },
+          { field: 'rag_resolution', label: 'Historical Engines Solution', wide: true },
         ]}
       />
 
       <EngineResolutionSection
-        title="Runbook Resolutions"
+        title="Runbook Solutions"
         records={runbookRecords}
-        emptyText="No runbook resolutions found for this ticket."
+        emptyText="No runbook solutions found for this ticket."
         fields={[
           { field: 'category_prediction', label: 'Category Prediction' },
           { field: 'runbook_score', label: 'Runbook Score' },
