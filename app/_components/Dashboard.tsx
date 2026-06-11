@@ -776,12 +776,12 @@ export default function Dashboard() {
     {
       header: 'Summary',
       accessorKey: 'summary',
-      className: 'min-w-[240px] text-sm',
+      className: 'min-w-[240px] max-w-[240px] text-sm',
     },
     {
       header: 'Description',
       accessorKey: 'description',
-      className: 'min-w-[300px] text-sm text-slate-600',
+      className: 'min-w-[300px] max-w-[300px] text-sm text-slate-600',
       cell: (row: JiraTicket) => (
         <span title={row.description} className="line-clamp-2">
           {row.description}
