@@ -84,7 +84,7 @@ interface ManualResolutionForm {
 
 interface ResolutionSuggestion {
   id: string;
-  type: 'RAG Resolution' | 'Runbook Resolution';
+  type: 'History Resolution Engine' | 'Runbook Resolution Engine';
   resolution: string;
   source?: unknown;
   similarity?: unknown;
@@ -167,6 +167,23 @@ function formatValue(value: unknown, field?: string) {
   if (typeof value === 'string' && isDateTimeField(field)) return formatDateTime(value);
   if (typeof value === 'object') return JSON.stringify(value, null, 2);
   return String(value);
+}
+
+function formatEngineDisplayValue(value: unknown, field?: string) {
+  if (typeof value !== 'string') return value;
+
+  const normalizedValue = value.trim().toLowerCase();
+  if (field === 'source_used') {
+    if (['historical', 'rag', 'rag 1'].includes(normalizedValue)) return 'History Resolution Engine';
+    if (['runbook', 'rag 2'].includes(normalizedValue)) return 'Runbook Resolution Engine';
+  }
+
+  return value
+    .replace(/\bRAG 1\b/g, 'history resolution engine')
+    .replace(/\bRAG 2\b/g, 'runbook resolution engine')
+    .replace(/\bHistorical Engines\b/g, 'History Resolution Engine')
+    .replace(/\bHistorical Engine\b/g, 'History Resolution Engine')
+    .replace(/\bRunbook Solutions\b/g, 'Runbook Resolution Engine');
 }
 
 function hasMeaningfulValue(value: unknown) {
@@ -311,7 +328,7 @@ function getResolutionSuggestions(ticket: JiraTicket): ResolutionSuggestion[] {
     if (hasMeaningfulValue(record.rag_resolution)) {
       suggestions.push({
         id: `rag-${record.id ?? index}`,
-        type: 'RAG Resolution',
+        type: 'History Resolution Engine',
         resolution: String(record.rag_resolution),
         source: record.source_used,
         similarity: record.similarity_score,
@@ -322,7 +339,7 @@ function getResolutionSuggestions(ticket: JiraTicket): ResolutionSuggestion[] {
     if (hasMeaningfulValue(record.runbook_resolution)) {
       suggestions.push({
         id: `runbook-${record.id ?? index}`,
-        type: 'Runbook Resolution',
+        type: 'Runbook Resolution Engine',
         resolution: String(record.runbook_resolution),
         source: record.source_used,
         similarity: record.runbook_score ?? record.similarity_score,
@@ -426,12 +443,12 @@ function EngineResolutionCard({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {visibleFields.map(({ field, label, wide }) => (
           <DetailItem
-            key={field}
-            field={field}
-            label={label ?? formatFieldLabel(field)}
-            value={record[field]}
-            wide={wide ?? String(record[field]).length > 80}
-          />
+                      key={field}
+                      field={field}
+                      label={label ?? formatFieldLabel(field)}
+                      value={formatEngineDisplayValue(record[field], field)}
+                      wide={wide ?? String(record[field]).length > 80}
+                    />
         ))}
       </div>
     </div>
@@ -472,9 +489,9 @@ function EngineRecommendations({ analyses }: { analyses: unknown[] }) {
   return (
     <>
       <EngineResolutionSection
-        title="Historical Engines Solution"
+        title="History Resolution Engine"
         records={ragRecords}
-        emptyText="No Historical Engines Solution found for this ticket."
+        emptyText="No history resolution engine result found for this ticket."
         fields={[
           { field: 'category_prediction', label: 'Category Prediction' },
           { field: 'similarity_score', label: 'Similarity Score' },
@@ -483,21 +500,21 @@ function EngineRecommendations({ analyses }: { analyses: unknown[] }) {
           { field: 'decision_reason', label: 'Decision Reason', wide: true },
           { field: 'created_at', label: 'Created At' },
           { field: 'rag_complaint', label: 'Complaint', wide: true },
-          { field: 'rag_resolution', label: 'Historical Engines Solution', wide: true },
+          { field: 'rag_resolution', label: 'History Resolution Engine', wide: true },
         ]}
       />
 
       <EngineResolutionSection
-        title="Runbook Solutions"
+        title="Runbook Resolution Engine"
         records={runbookRecords}
-        emptyText="No runbook solutions found for this ticket."
+        emptyText="No runbook resolution engine result found for this ticket."
         fields={[
           { field: 'category_prediction', label: 'Category Prediction' },
           { field: 'runbook_score', label: 'Runbook Score' },
           { field: 'source_used', label: 'Source Used' },
           { field: 'decision_reason', label: 'Decision Reason', wide: true },
           { field: 'created_at', label: 'Created At' },
-          { field: 'runbook_resolution', label: 'Runbook Resolution', wide: true },
+          { field: 'runbook_resolution', label: 'Runbook Resolution Engine', wide: true },
         ]}
       />
     </>
@@ -1179,12 +1196,12 @@ export default function Dashboard() {
                         className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={suggestion.type === 'RAG Resolution' ? 'default' : 'secondary'}>
+                          <Badge variant={suggestion.type === 'History Resolution Engine' ? 'default' : 'secondary'}>
                             {suggestion.type}
                           </Badge>
                           {suggestion.source !== undefined && (
                             <span className="text-xs font-semibold text-slate-500">
-                              Source: {formatValue(suggestion.source)}
+                              Source: {formatValue(formatEngineDisplayValue(suggestion.source, 'source_used'))}
                             </span>
                           )}
                           {suggestion.similarity !== undefined && (
@@ -1194,7 +1211,9 @@ export default function Dashboard() {
                           )}
                         </div>
                         {suggestion.reason !== undefined && (
-                          <p className="mt-2 text-xs font-medium text-slate-500">{formatValue(suggestion.reason)}</p>
+                          <p className="mt-2 text-xs font-medium text-slate-500">
+                            {formatValue(formatEngineDisplayValue(suggestion.reason))}
+                          </p>
                         )}
                         <p className="mt-3 whitespace-pre-wrap text-sm font-semibold text-slate-950">
                           {suggestion.resolution}
@@ -1204,7 +1223,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-                    No RAG or runbook resolutions were returned for this ticket.
+                    No history resolution engine or runbook resolution engine results were returned for this ticket.
                   </div>
                 )}
               </section>
